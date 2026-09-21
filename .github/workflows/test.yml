@@ -11,3 +11,4 @@ jobs:
         env:
           SCT_KEY: ${{ secrets.SCT_KEY }}
         run: curl -s "https://sctapi.ftqq.com/$SCT_KEY.send" -d "title=股票助手" -d "desp=测试成功，云端已连通"
+# test
