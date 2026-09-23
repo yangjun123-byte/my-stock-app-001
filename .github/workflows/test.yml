@@ -1,0 +1,11 @@
+name: Daily Stock Test
+on:
+  schedule:
+    - cron: '30 7 * * *'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send test message
+        run: curl -s "https://sctapi.ftqq.com/${{ secrets.SCT_KEY }}.send" -d "title=股票助手" -d "desp=测试成功，云端已连通"
