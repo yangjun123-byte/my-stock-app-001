@@ -1,11 +1,18 @@
-name: Daily Stock Test
+name: Daily Stock Picker
 on:
   schedule:
-    - cron: '30 7 * * *'
+    - cron: '30 7 * * *'  # 每天UTC时间7:30（北京时间15:30）
   workflow_dispatch:
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Send test message
-        run: curl -s "https://sctapi.ftqq.com/${{ secrets.SCT_KEY }}.send" -d "title=股票助手" -d "desp=测试成功，云端已连通"
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Run stock picker
+        env:
+          SCT_KEY: ${{ secrets.SCT_KEY }}
+        run: python stock_picker.py
