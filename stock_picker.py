@@ -1,52 +1,49 @@
-import os, urllib.request, urllib.parse
+import os, urllib.request, urllib.parse, json
 
 send_key = os.environ.get('SCT_KEY')
 
-# 1. 获取大盘指数（上证指数）
-index_url = "http://qt.gtimg.cn/q=sh000001"
-try:
-    req = urllib.request.Request(index_url, headers={'User-Agent': 'Mozilla/5.0'})
-    res = urllib.request.urlopen(req).read().decode('gbk')
-    index_data = res.split('~')
-    index_msg = f"大盘环境：上证指数 {index_data[3]}，涨跌幅 {index_data[32]}%"
-except:
-    index_msg = "大盘环境：获取失败"
+# 预设的测试股票池（你可以随时增减，格式必须是 sh 或 sz 开头）
+stock_pool = ["sh600519", "sz000858", "sh601318", "sh600036", "sz300750", 
+              "sh601012", "sh600900", "sz000333", "sh601166", "sz000651"]
 
-# 2. 监控几只具备中线价值的龙头股（这里换成你关注的股票代码）
-codes = "sh600519,sz000858,sh601318,sh600036,sz300750,sh601012,sh600900"
-url = f"http://qt.gtimg.cn/q={codes}"
+message = "【今日均线回踩策略扫描】\n\n"
+found = False
 
-try:
-    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-    result = urllib.request.urlopen(req).read().decode('gbk')
-    lines = result.strip().split(';')
-    
-    message = f"【{index_msg}】\n\n今日复盘与明日策略（仅供模拟参考）：\n"
-    
-    for line in lines:
-        if '~' in line:
-            data = line.split('~')
-            if len(data) > 32:
-                name, code, price, change = data[1], data[2], data[3], data[32]
-                
-                # 简单的均线策略占位（实际交易请人工判断）
-                suggestion = "观望"
-                if float(change) > 3:
-                    suggestion = "涨势过猛，明天不建议追高"
-                elif float(change) < -3:
-                    suggestion = "跌幅较大，暂不接飞刀"
-                else:
-                    suggestion = "走势平稳，可加入自选观察"
-                
-                message += f"\n▶ {name} ({code})\n"
-                message += f"现价: {price} | 涨跌幅: {change}%\n"
-                message += f"明日建议: {suggestion}\n"
-                message += f"严格止损位: 现价的 -5% (即 {round(float(price)*0.95, 2)})\n"
-except Exception as e:
-    message = f"获取数据失败：{e}"
+for code in stock_pool:
+    url = f"http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={code},day,,,5,qfq"
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        response = urllib.request.urlopen(req)
+        data = json.loads(response.read().decode('utf-8'))
+        
+        # 提取近5天收盘价
+        klines = data['data'][code]['qfqday']
+        closes = [float(k[2]) for k in klines]
+        
+        ma5 = sum(closes) / len(closes)           # 5日均线
+        today_close = closes[-1]                  # 今天收盘价
+        yesterday_close = closes[-2]              # 昨天收盘价
+        change = (today_close - yesterday_close) / yesterday_close * 100  # 今天涨跌幅
+        
+        # 策略核心：收盘价在5日线之上，且今天微跌（-3%到0%之间）
+        if today_close > ma5 and -3 <= change <= 0:
+            found = True
+            message += f"✅ {code}\n"
+            message += f"  现价: {today_close} | 5日均线: {round(ma5, 2)}\n"
+            message += f"  今日涨跌: {round(change, 2)}%\n"
+            message += f"  👉 关注点：若明日开盘不破5日线，可分批轻仓；跌破则放弃。\n\n"
+            
+    except Exception as e:
+        # 个别股票网络波动获取失败，跳过即可
+        pass 
 
-# 3. 发送微信
+if not found:
+    message += "今日无符合“均线回踩”形态的股票，建议保持观望，耐心等待。"
+
+message += "💡 警告：此为技术指标辅助工具，非投资建议。股市有风险，入市需谨慎！"
+
+# 发送微信
 send_url = f"https://sctapi.ftqq.com/{send_key}.send"
-data = urllib.parse.urlencode({"title": "每日复盘与明日操作建议", "desp": message}).encode('utf-8')
+data = urllib.parse.urlencode({"title": "均线回踩策略扫描", "desp": message}).encode('utf-8')
 send_req = urllib.request.Request(send_url, data=data, headers={'Content-Type': 'application/x-www-form-urlencoded'})
 urllib.request.urlopen(send_req)
