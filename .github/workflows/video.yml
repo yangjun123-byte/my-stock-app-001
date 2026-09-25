@@ -1,0 +1,43 @@
+name: Generate Video with ffmpeg-ai
+
+on:
+  workflow_dispatch: # 允许你手动点击按钮触发
+  # schedule:
+  #   - cron: '0 2 * * *' # 如果想每天定时自动生成，可以取消注释这行
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install ffmpeg and uv
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          pip install uv
+
+      - name: Install ffmpeg-ai
+        run: |
+          git clone https://github.com/numbpill3d/ffmpeg-ai.git
+          cd ffmpeg-ai
+          uv pip install -e ".[dev]"
+
+      - name: Generate Video
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: |
+          cd ffmpeg-ai
+          # 在这里修改你的视频主题和时长(秒)，600秒=10分钟
+          ffmpeg-ai generate "the history of the roman empire" --mode landscape -d 600
+
+      - name: Upload Video Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-video
+          path: ffmpeg-ai/output/*.mp4
